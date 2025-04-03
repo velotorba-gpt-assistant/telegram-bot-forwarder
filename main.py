@@ -19,29 +19,46 @@ def send_message(chat_id, text):
     res = requests.post(API_URL + "sendMessage", data={"chat_id": chat_id, "text": text})
     app.logger.info("📤 Telegram API: %s | %s", res.status_code, res.text)
 
-# === Polling — відповіді адміністратора покупцям ===
+# === Polling — ловимо ВСІ повідомлення з Telegram ===
 def start_polling():
     global last_client_id
     offset = None
     while True:
-        res = requests.get(API_URL + "getUpdates", params={"timeout": 100, "offset": offset})
-        data = res.json()
-        for update in data.get("result", []):
-            offset = update["update_id"] + 1
-            msg = update.get("message", {})
-            chat_id = msg.get("chat", {}).get("id")
-            text = msg.get("text", "")
-            if chat_id == ADMIN_CHAT_ID and last_client_id:
-                send_message(last_client_id, text)
-                send_message(ADMIN_CHAT_ID, "✅ Відповідь надіслано покупцю")
+        try:
+            res = requests.get(API_URL + "getUpdates", params={"timeout": 100, "offset": offset})
+            data = res.json()
+            for update in data.get("result", []):
+                offset = update["update_id"] + 1
+                msg = update.get("message", {})
+                chat_id = msg.get("chat", {}).get("id")
+                text = msg.get("text", "")
+                username = msg.get("from", {}).get("username", "невідомо")
+
+                if not text:
+                    continue
+
+                # Якщо пише АДМІН → відправити відповідь клієнту
+                if chat_id == ADMIN_CHAT_ID and last_client_id:
+                    send_message(last_client_id, text)
+                    send_message(ADMIN_CHAT_ID, "✅ Відповідь надіслано покупцю")
+
+                # Якщо пише КЛІЄНТ → переслати повідомлення адміна
+                elif chat_id != ADMIN_CHAT_ID:
+                    last_client_id = chat_id
+                    alert = f"📩 НОВЕ ПОВІДОМЛЕННЯ від @{username}:\n{text}"
+                    send_message(ADMIN_CHAT_ID, alert)
+
+        except Exception as e:
+            app.logger.error("❌ Polling error: %s", str(e))
+
         time.sleep(1)
 
-# === Обробка запиту з CRM ===
+# === Отримання повідомлень із CRM ===
 @app.route('/forward', methods=['POST'])
 def forward():
     global last_client_id
     data = request.json
-    app.logger.info("💬 Отримано повідомлення: %s", data)
+    app.logger.info("💬 Отримано повідомлення з CRM: %s", data)
     app.logger.info("🔍 CHAT ID: %s", data.get("client_id"))
 
     text = data.get("text", "")
