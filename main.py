@@ -12,9 +12,10 @@ API_URL = f"https://api.telegram.org/bot{TOKEN}/"
 
 last_client_id = None  # зберігає chat_id останнього клієнта
 
-# === Надіслати повідомлення через API ===
+# === Надіслати повідомлення через API з логом ===
 def send_message(chat_id, text):
-    requests.post(API_URL + "sendMessage", data={"chat_id": chat_id, "text": text})
+    res = requests.post(API_URL + "sendMessage", data={"chat_id": chat_id, "text": text})
+    print("📤 Надсилаємо в Telegram:", res.status_code, res.text)
 
 # === Polling — ловимо твої відповіді як адміна ===
 def start_polling():
@@ -44,6 +45,7 @@ def forward():
     if client_id:
         last_client_id = client_id
     full_message = f"✉️ Повідомлення від @{username}:\n{text}"
+    print("💬 Запит від SalesDrive:", data)
     send_message(ADMIN_CHAT_ID, full_message)
     return {"status": "ok"}, 200
 
